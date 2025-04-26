@@ -7,7 +7,8 @@ from langchain_openai import ChatOpenAI
 
 from langgraph.graph import StateGraph, END
 from langchain_community.tools.tavily_search import TavilySearchResults
-
+import json
+from prettyprinter import pprint
 # Load environment variables from .env file
 load_dotenv()
 
@@ -83,7 +84,8 @@ memory = MemorySaver()
 # STEP 5: Compile the graph
 # graph = graph_builder.compile(checkpointer=memory) # no need for checkpointer memory anymore
 graph = graph_builder.compile(
-    checkpointer=memory
+    checkpointer=memory,
+    interrupt_before=["tools"],
 )  # no need for checkpointer memory anymore
 
 # MEMORY CODE CONTINUES ===
@@ -92,29 +94,70 @@ graph = graph_builder.compile(
 config = {
     "configurable": {"thread_id": 1}
 }  # a thread where the agent will dump its memory to
-user_input = "Hi there! My name is Bond. and I have been happy for 100 years"
+user_input = "what is the capital of France? search by tavily"
 
 # The config is the **second positional argument** to stream() or invoke()!
 events = graph.stream(
     {"messages": [("user", user_input)]}, config, stream_mode="values"
 )
 
+print("first question: ")
 for event in events:
     event["messages"][-1].pretty_print()
-
-user_input = "do you remember my name, and how long have I been happy for?"
-
-# The config is the **second positional argument** to stream() or invoke()!
-events = graph.stream(
-    {"messages": [("user", user_input)]}, config, stream_mode="values"
-)
-
-for event in events:
-    event["messages"][-1].pretty_print()
-
 
 snapshot = graph.get_state(config)
-print(snapshot)
+
+# get the action from the snapshot
+# next_step = (
+#     snapshot.next_step
+# )
+
+
+# AI 메시지 출력
+# pprint(snapshot.values['messages'][-1])
+# tool_call 출력
+print('tools to be called===== > ')
+AI_message = snapshot.values['messages'][-1]
+pprint(AI_message.tool_calls)
+print('--------------------------------')
+
+
+# tool 노드 실행
+# None 은 tool 을 실행함.
+events = list(graph.stream(
+    None, config, stream_mode="values"
+))
+
+snapshot = graph.get_state(config)
+print('tool result===== > ')
+pprint(snapshot.values['messages'][-1])
+# Tool_message = snapshot.values['messages'][-1]
+# pprint(Tool_message.content)
+
+print('--------------------------------')
+# 전체 메시지 출력
+# pprint(events[-1]['messages'])
+
+# 각 이벤트들의 마지막 메시지 출력
+# for event in events:
+#     if "messages" in event:
+#         pprint(event['messages'][-1])
+
+
+print("second question: ")
+user_input = "what did i said to you before?"
+
+# # The config is the **second positional argument** to stream() or invoke()!
+events = graph.stream(
+    {"messages": [("user", user_input)]}, config, stream_mode="values"
+)
+
+for event in events:
+    event["messages"][-1].pretty_print()
+
+
+# snapshot = graph.get_state(config)
+# print(snapshot)
 
 
 # while True:
